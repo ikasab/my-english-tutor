@@ -50,7 +50,46 @@ with tab1:
     else:
         for idx, event in enumerate(reversed(st.session_state.events)):
             real_idx = len(st.session_state.events) - 1 - idx
-            st.markdown(f"""
-                <div class="event-card">
-                    <h3 style='margin-bottom:5px;'>{event['sport']} — {event['place']}</h3>
-                    <p style='color:#555;'>📅 {event['date']}
+            
+            # Используем простые блоки вместо f-строк с HTML, чтобы избежать SyntaxError
+            with st.container(border=True):
+                st.markdown(f"### {event['sport']} — {event['place']}")
+                st.write(f"📅 {event['date']} | ⏰ {event['time']}")
+                st.markdown(f"**👥 მონაწილეები: {event['confirmed']}/{event['max_people']}**")
+                
+                if event['confirmed'] < event['max_people']:
+                    if st.button(f"ჩაწერა (ID: {real_idx})", key=f"join_{real_idx}", use_container_width=True):
+                        st.session_state.requests.append({
+                            'event_id': real_idx, 
+                            'user': f"მოთამაშე_{random.randint(10,99)}", 
+                            'status': 'pending'
+                        })
+                        st.toast("მოთხოვნა გაიგზავნა!")
+                else:
+                    st.error("ადგილები შევსებულია")
+
+# --- ВКЛАДКА 2: СОЗДАНИЕ ИГРЫ ---
+with tab2:
+    st.subheader("ახალი თამაშის დამატება")
+    with st.container(border=True):
+        sport_in = st.selectbox("სპორტის სახეობა", ["ფეხბურთი", "კალათბურთი", "ჩოგბურთი", "ვოლიბურთი"])
+        place_in = st.text_input("ჩატარების ადგილი", placeholder="მაგალითად: ვაკის პარკი")
+        c1, c2 = st.columns(2)
+        date_in = c1.date_input("თარიღი")
+        time_in = c2.time_input("დრო")
+        max_p_in = st.slider("მოთამაშეების მაქს. რაოდენობა", 2, 22, 10)
+        
+        if st.button("გამოქვეყნება 🚀", use_container_width=True):
+            if place_in:
+                st.session_state.events.append({
+                    'sport': sport_in, 
+                    'place': place_in, 
+                    'date': str(date_in), 
+                    'time': str(time_in), 
+                    'max_people': max_p_in, 
+                    'confirmed': 1
+                })
+                st.success("წარმატებით დაემატა!")
+                st.rerun()
+            else:
+                st.warning("გ
