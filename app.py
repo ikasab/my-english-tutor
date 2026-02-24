@@ -9,7 +9,7 @@ st.set_page_config(page_title="AI English Coach", page_icon="🎤")
 
 # Настройка нейросети (Gemini)
 # Сюда вставляешь свой бесплатный ключ
-genai.configure(api_key="ВСТАВЬ_СВОЙ_КЛЮЧ")
+genai.configure(api_key="AIzaSyC5C7rLSOcZ8LqiKmEJcKJcN2lCjBbN9KA")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 st.title("🎤 Ваш AI-репетитор английского")
@@ -45,4 +45,5 @@ if text:
             st.audio(audio_io, format='audio/mp3')
             
         except Exception as e:
+
             st.error("Похоже, нужно проверить API ключ или соединение.")
