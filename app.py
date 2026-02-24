@@ -1,39 +1,59 @@
 import streamlit as st
 from streamlit_mic_recorder import speech_to_text
-import google.generativeai as genai
 from gtts import gTTS
+from textblob import TextBlob
 import io
+import random
 
-# Настройка
-st.set_page_config(page_title="English Tutor", page_icon="🇬🇧")
-genai.configure(api_key="AIzaSyC5C7rLSOcZ8LqiKmEJcKJcN2lCjBbN9KA") # <-- ПРОВЕРЬ КЛЮЧ ЗДЕСЬ
-model = genai.GenerativeModel('gemini-1.5-flash')
+st.set_page_config(page_title="English Tutor NoKey", page_icon="🎓")
 
-st.title("🇬🇧 AI English Speaking Club")
+# Список вопросов для общения
+if 'question' not in st.session_state:
+    st.session_state.question = "What is your favorite hobby and why?"
 
-# Кнопка записи
-text = speech_to_text(start_prompt="Нажми и говори (English) 🎤", stop_prompt="Остановить 🛑", language='en-US')
+questions = [
+    "What is your favorite hobby and why?",
+    "Tell me about your best friend.",
+    "What did you eat for breakfast today?",
+    "Where would you like to travel in the future?",
+    "What is your favorite movie?",
+    "Do you prefer coffee or tea?"
+]
+
+st.title("🎓 English Conversation Coach")
+st.write("---")
+st.subheader("Question for you:")
+st.warning(st.session_state.question)
+
+# Кнопка для смены вопроса
+if st.button("Next Question ➡️"):
+    st.session_state.question = random.choice(questions)
+    st.rerun()
+
+# Запись голоса
+text = speech_to_text(start_prompt="Answer by voice 🎙️", stop_prompt="Stop 🛑", language='en-US')
 
 if text:
-    st.info(f"Вы сказали: {text}")
+    st.markdown(f"**You said:** {text}")
     
-    # Запрос к AI
-    prompt = f"Act as an English teacher. 1. Correct any mistakes in this sentence: '{text}'. 2. Give a short natural reply to keep the conversation going."
+    # Исправление ошибок через TextBlob
+    blob = TextBlob(text)
+    corrected_text = str(blob.correct())
     
-    try:
-        response = model.generate_content(prompt)
-        ai_answer = response.text
-        
-        # Показываем ответ
-        st.subheader("AI Учитель:")
-        st.success(ai_answer)
-        
-        # Озвучка (превращаем текст в звук)
-        tts = gTTS(text=ai_answer, lang='en')
-        audio_fp = io.BytesIO()
-        tts.write_to_fp(audio_fp)
-        st.audio(audio_fp, format='audio/mp3', autoplay=True) # Autoplay сразу проиграет звук
-        
-    except Exception as e:
-        st.error(f"Ошибка API: {e}")
-        st.warning("Попробуй создать новый API Key в Google AI Studio и заменить его.")
+    if corrected_text.lower() != text.lower():
+        st.subheader("Correction:")
+        st.success(f"It's better to say: {corrected_text}")
+        response = f"I corrected you a bit. You should say: {corrected_text}. Good try! Let's continue."
+    else:
+        st.subheader("Perfect!")
+        st.balloons()
+        response = f"Great! Your English is perfect. You said: {text}."
+
+    # Озвучка ответа
+    tts = gTTS(text=response, lang='en')
+    audio_io = io.BytesIO()
+    tts.write_to_fp(audio_io)
+    st.audio(audio_io, format='audio/mp3', autoplay=True)
+
+st.write("---")
+st.caption("Эта версия работает без API ключей, используя локальную библиотеку исправления текста.")
