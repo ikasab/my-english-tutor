@@ -6,6 +6,7 @@ import random
 st.set_page_config(page_title="Sport Match Maker", layout="wide")
 
 # Инициализация базы данных в памяти (сессии)
+# Используем сессию, чтобы данные жили, пока открыта вкладка
 if 'events' not in st.session_state:
     st.session_state.events = []
 if 'requests' not in st.session_state:
@@ -13,35 +14,10 @@ if 'requests' not in st.session_state:
 
 st.title("⚽ Организация спортивных встреч")
 
-tab1, tab2, tab3 = st.tabs(["Все мероприятия", "➕ Создать игру", "📩 Запросы на участие"])
+# Создаем вкладки
+tab1, tab2, tab3 = st.tabs(["Все мероприятия", "➕ Создать игру", "📩 Запросы"])
 
-# --- TAB 1: СПИСОК МЕРОПРИЯТИЙ ---
-with tab1:
-    st.header("Доступные игры")
-    if not st.session_state.events:
-        st.write("Пока игр нет. Будь первым!")
-    else:
-        for idx, event in enumerate(st.session_state.events):
-            with st.container(border=True):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.subheader(f"{event['sport']} - {event['place']}")
-                    st.write(f"📅 **Дата:** {event['date']} | ⏰ **Время:** {event['time']}")
-                    st.write(f"👥 **Участники:** {event['confirmed']}/{event['max_people']}")
-                with col2:
-                    # Кнопка доступна, если есть места
-                    if event['confirmed'] < event['max_people']:
-                        if st.button(f"Записаться", key=f"join_{idx}"):
-                            st.session_state.requests.append({
-                                'event_id': idx,
-                                'user': f"Player_{random.randint(100, 999)}", 
-                                'status': 'pending'
-                            })
-                            st.toast("Запрос отправлен!")
-                    else:
-                        st.error("Мест нет")
-
-# --- TAB 2: СОЗДАНИЕ МЕРОПРИЯТИЯ ---
+# --- ТАБ 2: СОЗДАНИЕ (Сначала логика создания) ---
 with tab2:
     st.header("Новое мероприятие")
     with st.form("create_form", clear_on_submit=True):
@@ -52,7 +28,7 @@ with tab2:
         max_p = st.number_input("Сколько человек нужно?", min_value=2, max_value=50, value=10)
         
         submitted = st.form_submit_button("Опубликовать")
-        if submitted:
+        if submitted and place:
             new_event = {
                 'sport': sport,
                 'place': place,
@@ -63,26 +39,55 @@ with tab2:
                 'creator': "Admin" 
             }
             st.session_state.events.append(new_event)
-            st.success("Игра создана! Теперь она видна во вкладке 'Все мероприятия'.")
+            st.success("Игра создана! Перейдите во вкладку 'Все мероприятия'.")
+            st.rerun() # ПЕРЕЗАГРУЗКА, чтобы данные появились везде
 
-# --- TAB 3: ПОДТВЕРЖДЕНИЕ ЗАПРОСОВ ---
+# --- ТАБ 1: СПИСОК МЕРОПРИЯТИЙ ---
+with tab1:
+    st.header("Список доступных игр")
+    if not st.session_state.events:
+        st.info("Пока нет активных игр. Создайте первую игру во вкладке 'Создать игру'!")
+    else:
+        # Показываем игры в обратном порядке (новые сверху)
+        for idx, event in enumerate(reversed(st.session_state.events)):
+            # Вычисляем реальный индекс, так как мы развернули список
+            real_idx = len(st.session_state.events) - 1 - idx
+            
+            with st.container(border=True):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.subheader(f"{event['sport']} — {event['place']}")
+                    st.write(f"📅 **Дата:** {event['date']} | ⏰ **Время:** {event['time']}")
+                    st.write(f"👥 **Участники:** {event['confirmed']}/{event['max_people']}")
+                with col2:
+                    if event['confirmed'] < event['max_people']:
+                        if st.button(f"Записаться", key=f"join_{real_idx}"):
+                            st.session_state.requests.append({
+                                'event_id': real_idx,
+                                'user': f"Player_{random.randint(100, 999)}", 
+                                'status': 'pending'
+                            })
+                            st.toast("Запрос отправлен!")
+                    else:
+                        st.error("Мест нет")
+
+# --- ТАБ 3: ЗАПРОСЫ ---
 with tab3:
     st.header("Управление участниками")
-    pending_exists = False
-    for req_idx, req in enumerate(st.session_state.requests):
+    pending_reqs = [r for r in st.session_state.requests if r['status'] == 'pending']
+    
+    if not pending_reqs:
+        st.write("Новых запросов нет.")
+    
+    for r_idx, req in enumerate(st.session_state.requests):
         if req['status'] == 'pending':
-            pending_exists = True
-            event = st.session_state.events[req['event_id']]
-            with st.expander(f"Запрос на {event['sport']} от {req['user']}"):
-                st.write(f"Место: {event['place']}")
+            ev = st.session_state.events[req['event_id']]
+            with st.expander(f"Запрос от {req['user']} на {ev['sport']}"):
                 c1, c2 = st.columns(2)
-                if c1.button("✅ Принять", key=f"acc_{req_idx}"):
-                    if event['confirmed'] < event['max_people']:
-                        event['confirmed'] += 1
-                        req['status'] = 'accepted'
-                        st.rerun()
-                if c2.button("❌ Отклонить", key=f"rej_{req_idx}"):
+                if c1.button("✅ Принять", key=f"ok_{r_idx}"):
+                    st.session_state.events[req['event_id']]['confirmed'] += 1
+                    req['status'] = 'accepted'
+                    st.rerun()
+                if c2.button("❌ Отклонить", key=f"no_{r_idx}"):
                     req['status'] = 'rejected'
                     st.rerun()
-    if not pending_exists:
-        st.write("Новых запросов пока нет.")
