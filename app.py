@@ -5,10 +5,10 @@ import random
 from geopy.geocoders import Nominatim
 
 # Настройка страницы
-st.set_page_config(page_title="Sport App Georgia", page_icon="⚽")
+st.set_page_config(page_title="Sport App", page_icon="⚽")
 
-# Инициализация гео-локатора (бесплатный)
-geolocator = Nominatim(user_agent="my_sport_app_georgia")
+# Настройка гео-локатора с увеличенным временем ожидания
+geolocator = Nominatim(user_agent="geo_sport_app_v2", timeout=10)
 
 if 'events' not in st.session_state:
     st.session_state.events = []
@@ -19,7 +19,7 @@ st.title("⚽ სპორტული პლატფორმა")
 
 tab1, tab2, tab3 = st.tabs(["🏠 თამაშები", "➕ შექმნა", "📩 მოთხოვნები"])
 
-# --- ТАБ 1: СПИСОК С КАРТАМИ ---
+# --- TAB 1: СПИСОК ---
 with tab1:
     st.subheader("აქტიური თამაშები")
     if not st.session_state.events:
@@ -29,17 +29,18 @@ with tab1:
             real_idx = len(st.session_state.events) - 1 - idx
             with st.container(border=True):
                 st.markdown(f"### {event['sport']}")
-                st.write(f"📍 ადგილი: {event['place']}")
+                st.write(f"📍 **მისამართი:** {event['place']}")
                 st.write(f"📅 {event['date']} | ⏰ {event['time']}")
                 
-                # Карта, если координаты найдены
-                if event['lat'] and event['lon']:
-                    map_data = pd.DataFrame({'lat': [event['lat']], 'lon': [event['lon']]})
-                    st.map(map_data, zoom=14, size=200)
-                    
-                    # Ссылка на Google Maps для навигации
-                    google_maps_url = f"https://www.google.com/maps/search/?api=1&query={event['lat']},{event['lon']}"
-                    st.link_button("გახსენი Google Maps-ში 🗺️", google_maps_url)
+                # Показываем карту, если координаты есть
+                if event.get('lat') and event.get('lon'):
+                    map_df = pd.DataFrame({'lat': [event['lat']], 'lon': [event['lon']]})
+                    st.map(map_df, zoom=14)
+                
+                # Кнопка прямой ссылки на Google Maps (всегда работает)
+                search_query = event['place'].replace(" ", "+")
+                maps_url = f"https://www.google.com/maps/search/?api=1&query={search_query}+Georgia"
+                st.link_button("ნახე Google Maps-ზე 🗺️", maps_url)
 
                 st.write(f"👥 ხალხი: {event['confirmed']}/{event['max_people']}")
                 
@@ -47,30 +48,34 @@ with tab1:
                     if st.button("ჩაწერა", key=f"join_{real_idx}", use_container_width=True):
                         st.session_state.requests.append({
                             'event_id': real_idx, 
-                            'user': f"Gamer_{random.randint(10,99)}", 
+                            'user': f"მოთამაშე_{random.randint(10,99)}", 
                             'status': 'pending'
                         })
-                        st.toast("გაიგზავნა!")
+                        st.toast("მოთხოვნა გაიგზავნა!")
 
-# --- ТАБ 2: СОЗДАНИЕ (С поиском координат) ---
+# --- TAB 2: СОЗДАНИЕ ---
 with tab2:
     st.subheader("ახალი თამაშის დამატება")
     with st.form("add_event", clear_on_submit=True):
-        s_in = st.selectbox("სპორტი", ["ფეხბურთი", "კალათბურთი", "ჩოგბურთი", "ფრენბურთი"])
+        s_in = st.selectbox("სპორტი", ["ფეხბურთი", "კალათბურთი", "ჩოგბურთი", "ვოლიბურთი"])
         p_in = st.text_input("მისამართი (მაგ: Vake Park, Tbilisi)")
         d_in = st.date_input("თარიღი")
         t_in = st.time_input("დრო")
-        m_in = st.slider("მოთამაშეების რაოდენობა", 2, 22, 10)
+        m_in = st.slider("ხალხი", 2, 22, 10)
         
         submit = st.form_submit_button("გამოქვეყნება")
+        
         if submit:
             if p_in:
-                # Пытаемся найти координаты адреса
-                try:
-                    location = geolocator.geocode(p_in + ", Georgia")
-                    lat, lon = (location.latitude, location.longitude) if location else (None, None)
-                except:
-                    lat, lon = None, None
+                lat, lon = None, None
+                # Визуальный индикатор поиска координат
+                with st.spinner('ვ ეძებთ კოორდინატებს...'):
+                    try:
+                        location = geolocator.geocode(p_in + ", Georgia")
+                        if location:
+                            lat, lon = location.latitude, location.longitude
+                    except:
+                        pass # Если сервис координат упал, просто идем дальше без лагов
 
                 st.session_state.events.append({
                     'sport': s_in, 'place': p_in, 'date': str(d_in), 
@@ -80,9 +85,9 @@ with tab2:
                 st.success("წარმატებით დაემატა!")
                 st.rerun()
             else:
-                st.error("შეავსეთ მისამართი!")
+                st.warning("შეავსეთ მისამართი!")
 
-# --- ТАБ 3: ЗАПРОСЫ ---
+# --- TAB 3: ЗАПРОСЫ ---
 with tab3:
     st.subheader("მოთხოვნები")
     has_any = False
@@ -100,4 +105,4 @@ with tab3:
                     req['status'] = 'rejected'
                     st.rerun()
     if not has_any:
-        st.write("ახალი მოთხოვნები არ არის")
+        st.write("სიახლეები არ არის")
