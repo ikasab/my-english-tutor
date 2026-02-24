@@ -6,7 +6,7 @@ import requests
 from streamlit_searchbox import st_searchbox
 
 # Настройка страницы
-st.set_page_config(page_title="Sport App Georgia", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="Sport App", page_icon="⚽")
 
 # Инициализация хранилища
 if 'events' not in st.session_state:
@@ -18,20 +18,19 @@ if 'requests' not in st.session_state:
 def search_address(search_term: str):
     if not search_term or len(search_term) < 3:
         return []
-    url = f"https://photon.komoot.io/api/?q={search_term}&limit=5&lat=41.7151&lon=44.8271"
+    url = f"https://photon.komoot.io/api/?q={search_term}&limit=5&lat=41.71&lon=44.82"
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=5)
         if response.status_code == 200:
             features = response.json().get("features", [])
             results = []
             for f in features:
                 p = f.get("properties", {})
                 name = p.get("name", "")
-                city = p.get("city", "Tbilisi")
-                street = p.get("street", "")
-                full_label = f"{name} {street}, {city}".strip()
-                coords = f.get("geometry", {}).get("coordinates", [None, None])
-                results.append((full_label, {"label": full_label, "lat": coords[1], "lon": coords[0]}))
+                city = p.get("city", "")
+                label = f"{name} {city}".strip()
+                coords = f.get("geometry", {}).get("coordinates", [0, 0])
+                results.append((label, {"label": label, "lat": coords[1], "lon": coords[0]}))
             return results
     except:
         return []
@@ -39,77 +38,64 @@ def search_address(search_term: str):
 
 st.title("⚽ სპორტული პლატფორმა")
 
-# Вкладки
 tab1, tab2, tab3 = st.tabs(["🏠 თამაშები", "➕ შექმნა", "📩 მოთხოვნები"])
 
-# --- ТАБ 1: СПИСОК ИГР ---
+# --- TAB 1: LIST ---
 with tab1:
-    st.subheader("აქტიური თამაშები")
     if not st.session_state.events:
-        st.info("თამაშები ჯერ არ არის. შექმენი პირველი!")
+        st.info("თამაშები არ არის")
     else:
-        # Показываем список (новые сверху)
-        for idx, event in enumerate(reversed(st.session_state.events)):
-            real_idx = len(st.session_state.events) - 1 - idx
+        for idx, ev in enumerate(reversed(st.session_state.events)):
+            r_idx = len(st.session_state.events) - 1 - idx
             with st.container(border=True):
-                st.markdown(f"### {event['sport']} — {event['place']}")
-                st.write(f"📅 {event['date']} | ⏰ {event['time']}")
-                st.write(f"👥 მონაწილეები: {event['confirmed']}/{event['max_people']}")
-                
-                if event.get('lat') and event.get('lon'):
-                    m_df = pd.DataFrame({'lat': [event['lat']], 'lon': [event['lon']]})
-                    st.map(m_df, zoom=14)
+                st.subheader(f"{ev['sport']} - {ev['place']}")
+                st.write(f"📅 {ev['date']} | ⏰ {ev['time']}")
+                st.write(f"👥 {ev['confirmed']}/{ev['max_p']}")
+                if ev['lat'] and ev['lon']:
+                    st.map(pd.DataFrame({'lat':[ev['lat']], 'lon':[ev['lon']]}), zoom=14)
+                if ev['confirmed'] < ev['max_p']:
+                    if st.button("ჩაწერა", key=f"j_{r_idx}", use_container_width=True):
+                        st.session_state.requests.append({'ev_id': r_idx, 'user': f"Gamer{random.randint(1,99)}", 'status': 'pending'})
+                        st.toast("გაიგზავნა")
 
-                if event['confirmed'] < event['max_people']:
-                    if st.button("ჩაწერა 📩", key=f"join_{real_idx}", use_container_width=True):
-                        st.session_state.requests.append({
-                            'event_id': real_idx, 
-                            'user': f"მოთამაშე_{random.randint(10,99)}", 
-                            'status': 'pending'
-                        })
-                        st.success("მოთხოვნა გაიგზავნა!")
-                else:
-                    st.error("ადგილები შევსებულია")
-
-# --- ТАБ 2: СОЗДАНИЕ (БЕЗ ST.FORM ДЛЯ НАДЕЖНОСТИ) ---
+# --- TAB 2: CREATE ---
 with tab2:
-    st.subheader("ახალი თამაშის დამატება")
+    st.subheader("ახალი თამაში")
+    addr = st_searchbox(search_address, key="addr_search", label="მისამართი")
+    sport = st.selectbox("სახეობა", ["ფეხბურთი", "კალათბურთი", "ჩოგბურთი", "ვოლიბურთი"])
+    col1, col2 = st.columns(2)
+    d_v = col1.date_input("თარიღი")
+    t_v = col2.time_input("დრო")
+    m_p = st.slider("ხალხი", 2, 22, 10)
     
-    # 1. Поиск адреса (снаружи формы)
-    selected_addr = st_searchbox(
-        search_address,
-        key="addr_search_new",
-        label="მოძებნეთ მისამართი (ინგლისურად ან ქართულად)",
-    )
-    
-    # 2. Остальные поля
-    sport_type = st.selectbox("სპორტის სახეობა", ["ფეხბურთი", "კალათბურთი", "ჩოგბურთი", "ვოლიბურთი"])
-    
-    col_d, col_t = st.columns(2)
-    d_val = col_d.date_input("თარიღი", datetime.now())
-    t_val = col_t.time_input("დრო")
-    
-    max_p = st.slider("მოთამაშეების რაოდენობა", 2, 22, 10)
-    
-    # Кнопка создания
-    if st.button("თამაშის გამოქვეყნება 🚀", use_container_width=True):
-        if selected_addr:
-            # Создаем объект игры
-            new_game = {
-                'sport': sport_type,
-                'place': selected_addr["label"],
-                'date': str(d_val),
-                'time': str(t_val),
-                'max_people': max_p,
-                'confirmed': 1,
-                'lat': selected_addr["lat"],
-                'lon': selected_addr["lon"]
-            }
-            # Добавляем в список
-            st.session_state.events.append(new_game)
-            st.balloons()
-            st.success("თამაში წარმატებით დაემატა!")
-            # Пауза и перезагрузка для обновления списка
+    if st.button("გამოქვეყნება 🚀", use_container_width=True):
+        if addr:
+            st.session_state.events.append({
+                'sport': sport, 'place': addr['label'], 'date': str(d_v),
+                'time': str(t_v), 'max_p': m_p, 'confirmed': 1,
+                'lat': addr['lat'], 'lon': addr['lon']
+            })
+            st.success("წარმატებით დაემატა")
             st.rerun()
         else:
-            st.error("გთ
+            st.error("აირჩიეთ მისამართი")
+
+# --- TAB 3: REQUESTS ---
+with tab3:
+    st.subheader("მოთხოვნები")
+    pending = [r for r in st.session_state.requests if r['status'] == 'pending']
+    if not pending:
+        st.write("სიახლეები არ არის")
+    else:
+        for r_i, r in enumerate(st.session_state.requests):
+            if r['status'] == 'pending':
+                e = st.session_state.events[r['ev_id']]
+                with st.expander(f"{r['user']} - {e['sport']}"):
+                    c1, c2 = st.columns(2)
+                    if c1.button("✅", key=f"a_{r_i}"):
+                        st.session_state.events[r['ev_id']]['confirmed'] += 1
+                        r['status'] = 'accepted'
+                        st.rerun()
+                    if c2.button("❌", key=f"r_{r_i}"):
+                        r['status'] = 'rejected'
+                        st.rerun()
