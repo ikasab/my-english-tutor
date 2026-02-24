@@ -4,46 +4,36 @@ import google.generativeai as genai
 from gtts import gTTS
 import io
 
-# Настройка страницы
-st.set_page_config(page_title="AI English Coach", page_icon="🎤")
-
-# Настройка нейросети (Gemini)
-# Сюда вставляешь свой бесплатный ключ
-genai.configure(api_key="AIzaSyC5C7rLSOcZ8LqiKmEJcKJcN2lCjBbN9KA")
+# Настройка
+st.set_page_config(page_title="English Tutor", page_icon="🇬🇧")
+genai.configure(api_key="AIzaSyC5C7rLSOcZ8LqiKmEJcKJcN2lCjBbN9KA") # <-- ПРОВЕРЬ КЛЮЧ ЗДЕСЬ
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-st.title("🎤 Ваш AI-репетитор английского")
-st.write("Нажми кнопку ниже, скажи фразу на английском, и я исправлю твои ошибки!")
+st.title("🇬🇧 AI English Speaking Club")
 
-# Кнопка записи голоса
-text = speech_to_text(
-    start_prompt="Начать запись 🎙️",
-    stop_prompt="Стоп 🛑",
-    language='en-US',
-    use_container_width=True,
-    key='speech'
-)
+# Кнопка записи
+text = speech_to_text(start_prompt="Нажми и говори (English) 🎤", stop_prompt="Остановить 🛑", language='en-US')
 
 if text:
-    st.markdown(f"**Вы сказали:** `{text}`")
+    st.info(f"Вы сказали: {text}")
     
-    # Промпт для обучения
-    prompt = f"Act as a friendly English teacher. First, correct any grammar or pronunciation-style mistakes in my sentence: '{text}'. Then, give a brief and natural response to it. Keep it simple for a learner."
+    # Запрос к AI
+    prompt = f"Act as an English teacher. 1. Correct any mistakes in this sentence: '{text}'. 2. Give a short natural reply to keep the conversation going."
     
-    with st.spinner('AI думает...'):
-        try:
-            response = model.generate_content(prompt)
-            answer = response.text
-            
-            st.subheader("Разбор и ответ:")
-            st.info(answer)
-            
-            # Генерация звука (озвучка ответа AI)
-            tts = gTTS(text=answer, lang='en')
-            audio_io = io.BytesIO()
-            tts.write_to_fp(audio_io)
-            st.audio(audio_io, format='audio/mp3')
-            
-        except Exception as e:
-
-            st.error("Похоже, нужно проверить API ключ или соединение.")
+    try:
+        response = model.generate_content(prompt)
+        ai_answer = response.text
+        
+        # Показываем ответ
+        st.subheader("AI Учитель:")
+        st.success(ai_answer)
+        
+        # Озвучка (превращаем текст в звук)
+        tts = gTTS(text=ai_answer, lang='en')
+        audio_fp = io.BytesIO()
+        tts.write_to_fp(audio_fp)
+        st.audio(audio_fp, format='audio/mp3', autoplay=True) # Autoplay сразу проиграет звук
+        
+    except Exception as e:
+        st.error(f"Ошибка API: {e}")
+        st.warning("Попробуй создать новый API Key в Google AI Studio и заменить его.")
