@@ -4,92 +4,86 @@ from datetime import datetime
 import random
 
 # Настройка страницы
-st.set_page_config(page_title="Sport App Georgia", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="Sport App", page_icon="⚽")
 
-# Данные в сессии
+# Инициализация данных
 if 'events' not in st.session_state:
     st.session_state.events = []
 if 'requests' not in st.session_state:
     st.session_state.requests = []
-
-# Дизайн (CSS)
-st.markdown("""
-    <style>
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        background-color: #f0f2f6;
-        border-radius: 8px 8px 0px 0px;
-        padding: 10px 20px;
-    }
-    .stTabs [aria-selected="true"] { 
-        background-color: #007bff !important; 
-        color: white !important; 
-    }
-    .event-card {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        margin-bottom: 20px;
-        border-left: 6px solid #007bff;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
 st.title("⚽ სპორტული პლატფორმა")
 
 # Вкладки
 tab1, tab2, tab3 = st.tabs(["🏠 თამაშები", "➕ შექმნა", "📩 მოთხოვნები"])
 
-# --- ВКЛАДКА 1: СПИСОК ИГР ---
+# --- ВКЛАДКА 1: СПИСОК ---
 with tab1:
     st.subheader("აქტიური თამაშები")
     if not st.session_state.events:
-        st.info("თამაშები არ არის. შექმენი პირველი!")
+        st.info("თამაშები არ არის")
     else:
         for idx, event in enumerate(reversed(st.session_state.events)):
             real_idx = len(st.session_state.events) - 1 - idx
-            
-            # Используем простые блоки вместо f-строк с HTML, чтобы избежать SyntaxError
             with st.container(border=True):
-                st.markdown(f"### {event['sport']} — {event['place']}")
+                st.markdown(f"### {event['sport']}")
+                st.write(f"📍 ადგილი: {event['place']}")
                 st.write(f"📅 {event['date']} | ⏰ {event['time']}")
-                st.markdown(f"**👥 მონაწილეები: {event['confirmed']}/{event['max_people']}**")
+                st.write(f"👥 ხალხი: {event['confirmed']}/{event['max_people']}")
                 
                 if event['confirmed'] < event['max_people']:
-                    if st.button(f"ჩაწერა (ID: {real_idx})", key=f"join_{real_idx}", use_container_width=True):
+                    if st.button("ჩაწერა", key=f"join_{real_idx}"):
                         st.session_state.requests.append({
                             'event_id': real_idx, 
-                            'user': f"მოთამაშე_{random.randint(10,99)}", 
+                            'user': f"Gamer_{random.randint(10,99)}", 
                             'status': 'pending'
                         })
-                        st.toast("მოთხოვნა გაიგზავნა!")
+                        st.toast("გაიგზავნა!")
                 else:
-                    st.error("ადგილები შევსებულია")
+                    st.error("ადგილები არ არის")
 
-# --- ВКЛАДКА 2: СОЗДАНИЕ ИГРЫ ---
+# --- ВКЛАДКА 2: СОЗДАНИЕ ---
 with tab2:
     st.subheader("ახალი თამაშის დამატება")
-    with st.container(border=True):
-        sport_in = st.selectbox("სპორტის სახეობა", ["ფეხბურთი", "კალათბურთი", "ჩოგბურთი", "ვოლიბურთი"])
-        place_in = st.text_input("ჩატარების ადგილი", placeholder="მაგალითად: ვაკის პარკი")
-        c1, c2 = st.columns(2)
-        date_in = c1.date_input("თარიღი")
-        time_in = c2.time_input("დრო")
-        max_p_in = st.slider("მოთამაშეების მაქს. რაოდენობა", 2, 22, 10)
+    with st.form("add_event", clear_on_submit=True):
+        s_in = st.selectbox("სპორტი", ["ფეხბურთი", "კალათბურთი", "ჩოგბურთი", "ფრენბურთი"])
+        p_in = st.text_input("მისამართი")
+        d_in = st.date_input("თარიღი")
+        t_in = st.time_input("დრო")
+        m_in = st.slider("მოთამაშეების რაოდენობა", 2, 22, 10)
         
-        if st.button("გამოქვეყნება 🚀", use_container_width=True):
-            if place_in:
+        submit = st.form_submit_button("გამოქვეყნება")
+        if submit:
+            if p_in:
                 st.session_state.events.append({
-                    'sport': sport_in, 
-                    'place': place_in, 
-                    'date': str(date_in), 
-                    'time': str(time_in), 
-                    'max_people': max_p_in, 
+                    'sport': s_in, 
+                    'place': p_in, 
+                    'date': str(d_in), 
+                    'time': str(t_in), 
+                    'max_people': m_in, 
                     'confirmed': 1
                 })
                 st.success("წარმატებით დაემატა!")
                 st.rerun()
             else:
-                st.warning("გ
+                st.error("შეავსეთ მისამართი!")
+
+# --- ВКЛАДКА 3: ЗАПРОСЫ ---
+with tab3:
+    st.subheader("მოთხოვნები")
+    has_any = False
+    for r_idx, req in enumerate(st.session_state.requests):
+        if req['status'] == 'pending':
+            has_any = True
+            ev = st.session_state.events[req['event_id']]
+            with st.expander(f"{req['user']} - {ev['sport']}"):
+                c1, c2 = st.columns(2)
+                if c1.button("✅ მიღება", key=f"acc_{r_idx}"):
+                    st.session_state.events[req['event_id']]['confirmed'] += 1
+                    req['status'] = 'accepted'
+                    st.rerun()
+                if c2.button("❌ უარყოფა", key=f"rej_{r_idx}"):
+                    req['status'] = 'rejected'
+                    st.rerun()
+    if not has_any:
+        st.write("ახალი მოთხოვნები არ არის")
