@@ -1,59 +1,83 @@
 import streamlit as st
-from streamlit_mic_recorder import speech_to_text
-from gtts import gTTS
-from textblob import TextBlob
-import io
-import random
+import pandas as pd
+from datetime import datetime
 
-st.set_page_config(page_title="English Tutor NoKey", page_icon="🎓")
+st.set_page_config(page_title="Sport Match Maker", layout="wide")
 
-# Список вопросов для общения
-if 'question' not in st.session_state:
-    st.session_state.question = "What is your favorite hobby and why?"
+# Инициализация базы данных в памяти (сессии)
+if 'events' not in st.session_state:
+    st.session_state.events = []
+if 'requests' not in st.session_state:
+    st.session_state.requests = []
 
-questions = [
-    "What is your favorite hobby and why?",
-    "Tell me about your best friend.",
-    "What did you eat for breakfast today?",
-    "Where would you like to travel in the future?",
-    "What is your favorite movie?",
-    "Do you prefer coffee or tea?"
-]
+st.title("⚽ Организация спортивных встреч")
 
-st.title("🎓 English Conversation Coach")
-st.write("---")
-st.subheader("Question for you:")
-st.warning(st.session_state.question)
+tab1, tab2, tab3 = st.tabs(["Все мероприятия", "➕ Создать игру", "📩 Мои запросы"])
 
-# Кнопка для смены вопроса
-if st.button("Next Question ➡️"):
-    st.session_state.question = random.choice(questions)
-    st.rerun()
-
-# Запись голоса
-text = speech_to_text(start_prompt="Answer by voice 🎙️", stop_prompt="Stop 🛑", language='en-US')
-
-if text:
-    st.markdown(f"**You said:** {text}")
-    
-    # Исправление ошибок через TextBlob
-    blob = TextBlob(text)
-    corrected_text = str(blob.correct())
-    
-    if corrected_text.lower() != text.lower():
-        st.subheader("Correction:")
-        st.success(f"It's better to say: {corrected_text}")
-        response = f"I corrected you a bit. You should say: {corrected_text}. Good try! Let's continue."
+# --- TAB 1: СПИСОК МЕРОПРИЯТИЙ ---
+with tab1:
+    st.header("Доступные игры")
+    if not st.session_state.events:
+        st.write("Пока игр нет. Будь первым!")
     else:
-        st.subheader("Perfect!")
-        st.balloons()
-        response = f"Great! Your English is perfect. You said: {text}."
+        for idx, event in enumerate(st.session_state.events):
+            with st.container(border=True):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.subheader(f"{event['sport']} - {event['place']}")
+                    st.write(f"📅 **Дата:** {event['date']} | ⏰ **Время:** {event['time']}")
+                    st.write(f"👥 **Участники:** {event['confirmed']}/{event['max_people']}")
+                with col2:
+                    if st.button(f"Записаться", key=f"join_{idx}"):
+                        st.session_state.requests.append({
+                            'event_id': idx,
+                            'user': "User_" + str(random.randint(1, 100)), # Имитация юзера
+                            'status': 'pending'
+                        })
+                        st.toast("Запрос отправлен организатору!")
 
-    # Озвучка ответа
-    tts = gTTS(text=response, lang='en')
-    audio_io = io.BytesIO()
-    tts.write_to_fp(audio_io)
-    st.audio(audio_io, format='audio/mp3', autoplay=True)
+# --- TAB 2: СОЗДАНИЕ МЕРОПРИЯТИЯ ---
+with tab2:
+    st.header("Новое мероприятие")
+    with st.form("create_form"):
+        sport = st.selectbox("Вид спорта", ["Футбол", "Баскетбол", "Теннис", "Волейбол", "Другое"])
+        place = st.text_input("Место проведения (название поля/адрес)")
+        date = st.date_input("Дата", datetime.now())
+        time = st.time_input("Время")
+        max_p = st.number_input("Сколько всего человек нужно?", min_value=2, max_value=50, value=10)
+        
+        submitted = st.form_submit_button("Опубликовать")
+        if submitted:
+            new_event = {
+                'sport': sport,
+                'place': place,
+                'date': str(date),
+                'time': str(time),
+                'max_people': max_p,
+                'confirmed': 1, # Организатор уже в деле
+                'creator': "Admin" 
+            }
+            st.session_state.events.append(new_event)
+            st.success("Игра создана!")
+            st.rerun()
 
-st.write("---")
-st.caption("Эта версия работает без API ключей, используя локальную библиотеку исправления текста.")
+# --- TAB 3: ПОДТВЕРЖДЕНИЕ ЗАПРОСОВ ---
+with tab3:
+    st.header("Управление участниками")
+    for req_idx, req in enumerate(st.session_state.requests):
+        if req['status'] == 'pending':
+            event = st.session_state.events[req['event_id']]
+            st.write(f"Запрос от **{req['user']}** на игру **{event['sport']}** ({event['place']})")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Принять", key=f"acc_{req_idx}"):
+                if event['confirmed'] < event['max_people']:
+                    event['confirmed'] += 1
+                    req['status'] = 'accepted'
+                    st.rerun()
+                else:
+                    st.error("Мест больше нет!")
+            
+            if c2.button("❌ Отклонить", key=f"rej_{req_idx}"):
+                req['status'] = 'rejected'
+                st.rerun()
